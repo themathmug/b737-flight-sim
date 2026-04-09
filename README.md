@@ -72,8 +72,17 @@ and procedures.
 ```bash
 git clone https://github.com/themathmug/b737-flight-sim.git
 cd b737-flight-sim
-pip install -r requirements.txt
-python main.py
+pip3 install -r requirements.txt
+
+# Interactive curses cockpit (requires a real terminal)
+python3 main.py                       # starts at default takeoff scenario
+python3 main.py --scenario 2          # cruise FL350 KSEA→KJFK  ← best for study
+
+# Headless (no terminal needed)
+python3 main.py --headless 300 --scenario 2
+
+# List all scenarios
+python3 main.py --list-scenarios
 ```
 
 See [`docs/quick_start.md`](docs/quick_start.md) for a full tutorial.
@@ -90,7 +99,7 @@ See [`docs/quick_start.md`](docs/quick_start.md) for a full tutorial.
 ## Running Tests
 
 ```bash
-pytest tests/ -v
+python3 -m pytest tests/ -v
 ```
 
 ## Requirements
