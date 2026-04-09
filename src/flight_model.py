@@ -153,6 +153,8 @@ class FlightModel:
         if initial_speed_cas_ms > 0:
             self.state.tas_ms = cas_to_tas(initial_speed_cas_ms, initial_altitude_m)
             self.state.on_ground = False
+            # Start at approximate equilibrium cruise pitch to avoid initial transients
+            self.state.pitch_deg = 2.0
 
         self.aero = AerodynamicsModel()
         self.engines = DualEngineSystem()

@@ -61,6 +61,15 @@ class EngineModel:
     def __init__(self) -> None:
         self.state = EngineState()
 
+    def prespool(self, throttle: float, altitude_m: float = 0.0) -> None:
+        """Instantly set engine state to match *throttle* – used for in-flight init."""
+        self.state.throttle_lever = max(0.0, min(1.0, throttle))
+        self.state.n1_pct = self.throttle_to_n1_target(self.state.throttle_lever)
+        self.state.n2_pct = self.state.n1_pct * N2_PER_N1
+        self.state.thrust_n = self.n1_to_thrust(self.state.n1_pct, altitude_m)
+        self.state.egt_c = self.n1_to_egt(self.state.n1_pct, altitude_m)
+        self.state.fuel_flow_kgh = self.n1_to_fuel_flow(self.state.n1_pct, altitude_m)
+
     # ── Throttle → target N1 ─────────────────────────────────────────────────
     @staticmethod
     def throttle_to_n1_target(throttle: float) -> float:

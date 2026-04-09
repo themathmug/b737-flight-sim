@@ -90,6 +90,7 @@ class TestAutopilotCompute:
     def test_speed_hold_increases_throttle_when_slow(self):
         ap = self._make_ap()
         ap.targets.cas_kts = 280
+        ap._spd_int = 0.6   # simulate trim throttle pre-loaded at engage
         out = ap.compute(0.1, heading_deg=90, altitude_m=5000,
                          cas_kts=240, vs_fpm=0, pitch_deg=2, bank_deg=0,
                          throttle_current=0.6)
@@ -99,6 +100,7 @@ class TestAutopilotCompute:
     def test_speed_hold_decreases_throttle_when_fast(self):
         ap = self._make_ap()
         ap.targets.cas_kts = 220
+        ap._spd_int = 0.8   # simulate trim throttle pre-loaded at engage
         out = ap.compute(0.1, heading_deg=90, altitude_m=5000,
                          cas_kts=270, vs_fpm=0, pitch_deg=2, bank_deg=0,
                          throttle_current=0.8)

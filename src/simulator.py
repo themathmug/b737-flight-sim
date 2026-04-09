@@ -98,6 +98,11 @@ class Simulator:
         )
         self.systems.flaps.lever_position = config.flap_position
 
+        # Pre-spool engines to match initial throttle if starting in-flight
+        if config.initial_altitude_m > 0.0:
+            self.model.engines.eng1.prespool(config.throttle, config.initial_altitude_m)
+            self.model.engines.eng2.prespool(config.throttle, config.initial_altitude_m)
+
         # Wind
         self.model.set_wind(
             config.wind_speed_kts * KTS_TO_MS, config.wind_dir_deg
@@ -112,6 +117,7 @@ class Simulator:
                 altitude=config.ap_target_alt_m,
                 cas_kts=config.ap_target_cas_kts,
                 vs_fpm=0.0,
+                throttle_trim=config.throttle,   # pre-load integrator near trim
             )
             self.autopilot.lateral_mode  = LateralMode.HDG_SEL
             self.autopilot.vertical_mode = VerticalMode.ALT_HLD

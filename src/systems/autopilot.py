@@ -79,17 +79,19 @@ class AutopilotSystem:
     # Bank→bank-rate: Kp proportional control of bank rate
     K_BANK_RATE: float  = 5.0    # deg/s per deg bank error
 
-    # Altitude→VS: Kp = 1 fpm per 1 ft error
-    K_ALT_VS: float     = 8.0    # fpm / ft error
+    # Altitude→VS: Kp (with VS derivative term for phugoid damping)
+    K_ALT_VS: float     = 4.0    # fpm / ft error
+    K_ALT_D:  float     = 0.6    # VS damping: reduces commanded VS by this fraction of current VS
     MAX_VS_CMD: float   = 2_500.0  # fpm
 
     # VS→pitch: Kp
     K_VS_PITCH: float   = 0.003   # deg pitch / fpm error
 
-    # Speed→throttle: Kp
-    K_SPD_THR: float    = 0.005  # throttle / kt error
-    MAX_THR: float      = 0.98
-    MIN_THR: float      = 0.05
+    # Speed→throttle PI: integrator provides the trim reference
+    K_SPD_P: float    = 0.003   # throttle / kt error  (proportional)
+    K_SPD_I: float    = 0.0008  # throttle / (kt·s)   (integrator)
+    MAX_THR: float    = 0.98
+    MIN_THR: float    = 0.05
 
     def __init__(self) -> None:
         self.lateral_mode: LateralMode = LateralMode.OFF
@@ -114,15 +116,21 @@ class AutopilotSystem:
         altitude: float,
         cas_kts: float,
         vs_fpm: float,
+        throttle_trim: float = 0.0,
     ) -> None:
-        """Engage autopilot – capture current values as targets."""
+        """Engage autopilot – capture current values as targets.
+
+        *throttle_trim* pre-loads the speed integrator to the current trim
+        throttle so A/THR starts at the right power setting immediately.
+        """
         self._engaged = True
         self.targets.heading_deg = heading
         self.targets.altitude_m  = altitude
         self.targets.cas_kts     = cas_kts
         self.targets.vs_fpm      = vs_fpm
         self._alt_int = 0.0
-        self._spd_int = 0.0
+        # Pre-load integrator to the trim throttle so A/THR starts near trim
+        self._spd_int = max(self.MIN_THR, min(self.MAX_THR, throttle_trim))
         self._vs_int  = 0.0
 
     def disengage(self) -> None:
@@ -236,6 +244,8 @@ class AutopilotSystem:
         if self.vertical_mode == VerticalMode.ALT_HLD:
             alt_err_m = self.targets.altitude_m - altitude
             target_vs = self.K_ALT_VS * alt_err_m * 3.28084  # → fpm
+            # PD: subtract a fraction of the current VS to damp phugoid oscillations
+            target_vs -= self.K_ALT_D * vs_fpm
             target_vs = max(-self.MAX_VS_CMD, min(self.MAX_VS_CMD, target_vs))
             vs_err = target_vs - vs_fpm
             target_pitch = 2.0 + self.K_VS_PITCH * vs_err
@@ -277,12 +287,19 @@ class AutopilotSystem:
     def _speed_control(
         self, dt: float, cas_kts: float, throttle: float
     ) -> float:
-        """Return commanded throttle (0–1)."""
+        """Return commanded throttle using a PI controller.
+
+        The integrator *_spd_int* is pre-loaded at AP engagement to the
+        current trim throttle, so A/THR starts near the right power immediately.
+        The integral slowly adjusts to account for any model inaccuracies.
+        """
         err = self.targets.cas_kts - cas_kts
-        self._spd_int += err * dt * 0.001   # small integrator
-        self._spd_int = max(-0.2, min(0.2, self._spd_int))
-        thr = throttle + self.K_SPD_THR * err + self._spd_int
-        return max(self.MIN_THR, min(self.MAX_THR, thr))
+        # Integrator: slow wind-up to track long-term trim point
+        self._spd_int += err * dt * self.K_SPD_I
+        self._spd_int = max(self.MIN_THR, min(self.MAX_THR, self._spd_int))
+        # PI output: integrator is the trim, proportional corrects for errors
+        thr_cmd = self._spd_int + self.K_SPD_P * err
+        return max(self.MIN_THR, min(self.MAX_THR, thr_cmd))
 
     # ── Status helpers ────────────────────────────────────────────────────────
     def mode_line(self) -> str:
